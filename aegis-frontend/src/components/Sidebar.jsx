@@ -1,53 +1,147 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { auth } from '../services/api';
 
 export default function Sidebar() {
   const [expanded, setExpanded] = useState(true);
+  const [user, setUser] = useState(null);
   const location = useLocation();
+
+  useEffect(() => {
+    auth.me().then(res => {
+      setUser(res.user);
+    }).catch(err => {
+      console.error('Error fetching user:', err);
+    });
+  }, []);
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
-  const navSections = [
-    {
-      title: 'Main',
-      items: [
-        { label: 'Dashboard', path: '/dashboard' },
-        { label: 'Profile', path: '/profile' }
-      ]
-    },
-    {
-      title: 'Identity & Governance',
-      items: [
-        { label: 'Submit Grievance', path: '/submit-grievance' },
-        { label: 'My Grievances', path: '/my-grievances' },
-        { label: 'Authority Dashboard', path: '/authority/grievances' }
-      ]
-    },
-    {
-      title: 'Chronos (Academics)',
-      items: [
-        { label: 'Academic Resources', path: '/vault' },
-        { label: 'Calendar & Events', path: '/calendar' },
-        { label: 'Destiny Manager', path: '/academics' }
-      ]
-    },
-    {
-      title: 'Opportunities',
-      items: [
-        { label: 'Browse Opportunities', path: '/opportunities' },
-        { label: 'Scholar\'s Ledger', path: '/scholar-ledger' },
-        { label: 'Inbox', path: '/inbox' },
-        { label: 'Faculty Portal', path: '/faculty/opportunities' },
-        { label: 'Applications', path: '/faculty/applications' }
-      ]
-    },
-    {
-      title: 'Admin',
-      items: [
-        { label: 'Admin Dashboard', path: '/admin' }
-      ]
+  // Role-based navigation
+  const getNavSections = () => {
+    const roleId = user?.role_id;
+
+    // Common sections for all users
+    const commonSections = [
+      {
+        title: 'Main',
+        items: [
+          { label: 'Dashboard', path: '/dashboard' },
+          { label: 'Profile', path: '/profile' }
+        ]
+      }
+    ];
+
+    // Student-specific sections
+    if (roleId === 1) {
+      return [
+        ...commonSections,
+        {
+          title: 'Identity & Governance',
+          items: [
+            { label: 'Submit Grievance', path: '/submit-grievance' },
+            { label: 'My Grievances', path: '/my-grievances' }
+          ]
+        },
+        {
+          title: 'Chronos (Academics)',
+          items: [
+            { label: 'Academic Resources', path: '/vault' },
+            { label: 'Calendar & Events', path: '/calendar' }
+          ]
+        },
+        {
+          title: 'Opportunities',
+          items: [
+            { label: 'Browse Opportunities', path: '/opportunities' },
+            { label: 'Scholar\'s Ledger', path: '/scholar-ledger' },
+            { label: 'Inbox', path: '/inbox' }
+          ]
+        }
+      ];
     }
-  ];
+
+    // Faculty-specific sections
+    if (roleId === 2) {
+      return [
+        ...commonSections,
+        {
+          title: 'Chronos (Academics)',
+          items: [
+            { label: 'Academic Resources', path: '/vault' },
+            { label: 'Calendar & Events', path: '/calendar' }
+          ]
+        },
+        {
+          title: 'Opportunities & Applications',
+          items: [
+            { label: 'Post Opportunity', path: '/faculty/opportunities' },
+            { label: 'Review Applications', path: '/faculty/applications' },
+            { label: 'Messages', path: '/inbox' }
+          ]
+        }
+      ];
+    }
+
+    // Admin/Authority sections (role_id 3 or 4)
+    if (roleId === 3 || roleId === 4) {
+      const isAdmin = roleId === 4;
+      return [
+        ...commonSections,
+        {
+          title: 'System Administration',
+          items: [
+            { label: 'Admin Dashboard', path: '/admin' },
+            { label: 'Manage Users', path: '/admin' },
+            { label: 'Manage Roles', path: '/admin' },
+            { label: 'System Settings', path: '/admin' }
+          ]
+        },
+        {
+          title: 'Identity & Governance (CRUD)',
+          items: [
+            { label: 'All Grievances', path: '/authority/grievances' },
+            { label: 'Create Grievance', path: '/submit-grievance' },
+            { label: 'Assign & Resolve', path: '/authority/grievances' },
+            { label: 'Grievance Reports', path: '/authority/grievances' }
+          ]
+        },
+        {
+          title: 'Opportunities & Applications (CRUD)',
+          items: [
+            { label: 'All Opportunities', path: '/opportunities' },
+            { label: 'Create Opportunity', path: '/faculty/opportunities' },
+            { label: 'Approve Postings', path: '/faculty/opportunities' },
+            { label: 'Manage Applications', path: '/faculty/applications' },
+            { label: 'Faculty Portal', path: '/faculty/opportunities' }
+          ]
+        },
+        {
+          title: 'Chronos (Academics - CRUD)',
+          items: [
+            { label: 'Academic Calendar', path: '/calendar' },
+            { label: 'Create Event', path: '/calendar' },
+            { label: 'Manage Schedules', path: '/calendar' },
+            { label: 'Academic Resources', path: '/vault' },
+            { label: 'Moderate Content', path: '/vault' }
+          ]
+        },
+        {
+          title: 'Communications',
+          items: [
+            { label: 'Monitor Messages', path: '/inbox' },
+            { label: 'Faculty Inbox', path: '/inbox' },
+            { label: 'System Notifications', path: '/inbox' }
+          ]
+        }
+      ];
+    }
+
+    // Default: show minimal navigation
+    return commonSections;
+  };
+
+  const navSections = getNavSections();
 
   const getLinkClass = (isActive) => {
     const base = 'block px-4 py-2 rounded-lg transition text-sm';

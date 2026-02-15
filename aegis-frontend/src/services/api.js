@@ -30,6 +30,7 @@ export const opportunities = {
   get: (id) => request(`/api/opportunities/${id}`),
   create: (payload) => request('/api/opportunities', { method: 'POST', body: JSON.stringify(payload) }),
   update: (id, payload) => request(`/api/opportunities/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  remove: (id) => request(`/api/opportunities/${id}`, { method: 'DELETE' }),
 }
 
 export const applications = {
@@ -52,5 +53,20 @@ export const oppMessages = {
 }
 
 oppMessages.list = (qs = '') => request(`/api/opportunity_messages${qs}`);
+
+export const admin = {
+  listUsers: (qs = '') => request(`/api/admin/users${qs}`),
+  updateUserRole: (userId, payload) => request(`/api/admin/users/${userId}/role`, { method: 'PUT', body: JSON.stringify(payload) }),
+  toggleUserActive: (userId, payload) => request(`/api/admin/users/${userId}/status`, { method: 'PUT', body: JSON.stringify(payload) }),
+  getActivityLogs: (qs = '') => request(`/api/admin/logs${qs}`),
+  getSystemHealth: () => request('/api/admin/health'),
+}
+
+export const authority = {
+  getDashboard: (qs = '') => request(`/api/authority/dashboard${qs}`),
+  assignGrievance: (payload) => request('/api/authority/assign', { method: 'POST', body: JSON.stringify(payload) }),
+  updateGrievanceStatus: (payload) => request('/api/authority/status-update', { method: 'POST', body: JSON.stringify(payload) }),
+  getGrievanceTimeline: (grievanceId) => request(`/api/authority/timeline/${grievanceId}`),
+}
 
 export default { request, users };

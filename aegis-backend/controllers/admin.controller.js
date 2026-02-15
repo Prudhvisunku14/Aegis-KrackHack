@@ -53,10 +53,15 @@ exports.updateUserRole = async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ message: 'user not found' });
 
     // Log activity
-    await db.query(
-      `INSERT INTO activity_logs (user_id, action, details) VALUES ($1, $2, $3)`,
-      [req.user.id, 'ROLE_UPDATED', `Updated user ${user_id} to role ${role_id}`]
-    );
+    try {
+      await db.query(
+        `INSERT INTO activity_logs (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)`,
+        [req.user.user_id || req.user.id, 'ROLE_UPDATED', 'user', user_id]
+      );
+    } catch (logErr) {
+      console.error('Activity log error:', logErr);
+      // Don't fail the operation if logging fails
+    }
 
     return res.json(rows[0]);
   } catch (err) {
@@ -83,10 +88,15 @@ exports.toggleUserActive = async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ message: 'user not found' });
 
     // Log activity
-    await db.query(
-      `INSERT INTO activity_logs (user_id, action, details) VALUES ($1, $2, $3)`,
-      [req.user.id, 'USER_STATUS_UPDATED', `User ${user_id} set to is_active=${is_active}`]
-    );
+    try {
+      await db.query(
+        `INSERT INTO activity_logs (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)`,
+        [req.user.user_id || req.user.id, 'USER_STATUS_UPDATED', 'user', user_id]
+      );
+    } catch (logErr) {
+      console.error('Activity log error:', logErr);
+      // Don't fail the operation if logging fails
+    }
 
     return res.json(rows[0]);
   } catch (err) {
@@ -107,7 +117,7 @@ exports.getActivityLogs = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const { rows } = await db.query(`
-      SELECT id, user_id, action, details, created_at
+      SELECT id, user_id, action, entity_type, entity_id, created_at
       FROM activity_logs
       ORDER BY created_at DESC
       LIMIT $1 OFFSET $2
@@ -131,12 +141,16 @@ exports.getSystemHealth = async (req, res) => {
     const { rows: userCount } = await db.query('SELECT COUNT(*) as count FROM users');
     const { rows: grievanceCount } = await db.query('SELECT COUNT(*) as count FROM grievances');
     const { rows: logCount } = await db.query('SELECT COUNT(*) as count FROM activity_logs');
+    const { rows: oppCount } = await db.query('SELECT COUNT(*) as count FROM opportunities');
+    const { rows: resourceCount } = await db.query('SELECT COUNT(*) as count FROM academic_resources');
 
     return res.json({
       db: dbHealth.rowCount > 0 ? 'connected' : 'error',
       users: parseInt(userCount[0].count, 10),
       grievances: parseInt(grievanceCount[0].count, 10),
       logs: parseInt(logCount[0].count, 10),
+      opportunities: parseInt(oppCount[0].count, 10),
+      resources: parseInt(resourceCount[0].count, 10),
       timestamp: new Date().toISOString()
     });
   } catch (err) {

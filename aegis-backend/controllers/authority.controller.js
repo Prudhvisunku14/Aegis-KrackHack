@@ -8,7 +8,7 @@ const db = require('../db');
 exports.getDashboard = async (req, res) => {
   try {
     // Get all grievances (authority/admin can see all, filter by department later)
-    const { department_id, status } = req.query;
+    const { status } = req.query;
     const limit = Math.min(parseInt(req.query.limit || 50, 10), 100);
     const page = Math.max(parseInt(req.query.page || 1, 10), 1);
     const offset = (page - 1) * limit;
@@ -18,14 +18,8 @@ exports.getDashboard = async (req, res) => {
     let paramIdx = 1;
 
     if (status) {
-      whereClause += ` AND status = $${paramIdx}`;
+      whereClause += ` AND g.status = $${paramIdx}`;
       params.push(status);
-      paramIdx++;
-    }
-
-    if (department_id && ['admin', 'authority'].includes(req.user?.role)) {
-      whereClause += ` AND assigned_department = $${paramIdx}`;
-      params.push(department_id);
       paramIdx++;
     }
 
@@ -36,12 +30,12 @@ exports.getDashboard = async (req, res) => {
         gp.priority_name,
         u.full_name as reporter_name,
         u.institute_email as reporter_email,
-        d.department_name as assigned_dept_name
+        au.full_name as assigned_to_name
       FROM grievances g
       LEFT JOIN grievance_category gc ON g.category_id = gc.category_id
       LEFT JOIN grievance_priority gp ON g.priority_id = gp.priority_id
-      LEFT JOIN users u ON g.reporter_id = u.user_id
-      LEFT JOIN departments d ON g.assigned_department = d.department_id
+      LEFT JOIN users u ON g.submitted_by = u.user_id
+      LEFT JOIN users au ON g.assigned_to = au.user_id
       WHERE ${whereClause}
       ORDER BY g.priority_id DESC, g.created_at DESC
       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
@@ -51,7 +45,7 @@ exports.getDashboard = async (req, res) => {
     const result = await db.query(q, params);
     
     // Get total count
-    const countQ = `SELECT COUNT(*) as total FROM grievances WHERE ${whereClause}`;
+    const countQ = `SELECT COUNT(*) as total FROM grievances g WHERE ${whereClause}`;
     const countResult = await db.query(countQ, params.slice(0, -2));
     const total = parseInt(countResult.rows[0].total, 10);
 
@@ -71,44 +65,33 @@ exports.assignGrievance = async (req, res) => {
       return res.status(403).json({ message: 'Only admin/authority can assign grievances' });
     }
 
-    const { grievance_id, department_id, assigned_to_user_id } = req.body;
-    if (!grievance_id || !department_id) {
-      return res.status(400).json({ message: 'grievance_id and department_id required' });
+    const { grievance_id, assigned_to_user_id } = req.body;
+    if (!grievance_id || !assigned_to_user_id) {
+      return res.status(400).json({ message: 'grievance_id and assigned_to_user_id required' });
     }
-
-    const updates = [];
-    const params = [];
-    let paramIdx = 1;
-
-    updates.push(`assigned_department = $${paramIdx}`);
-    params.push(department_id);
-    paramIdx++;
-
-    if (assigned_to_user_id) {
-      updates.push(`assigned_to_user_id = $${paramIdx}`);
-      params.push(assigned_to_user_id);
-      paramIdx++;
-    }
-
-    params.push(grievance_id);
 
     const q = `
       UPDATE grievances 
-      SET ${updates.join(', ')}
-      WHERE id = $${paramIdx}
+      SET assigned_to = $1, updated_at = NOW()
+      WHERE grievance_id = $2
       RETURNING *
     `;
 
-    const result = await db.query(q, params);
+    const result = await db.query(q, [assigned_to_user_id, grievance_id]);
     if (result.rowCount === 0) {
       return res.status(404).json({ message: 'grievance not found' });
     }
 
     // Log activity
-    await db.query(
-      `INSERT INTO activity_logs (user_id, action, details) VALUES ($1, $2, $3)`,
-      [req.user.id, 'GRIEVANCE_ASSIGNED', `Grievance ${grievance_id} assigned to department ${department_id}`]
-    );
+    try {
+      await db.query(
+        `INSERT INTO activity_logs (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)`,
+        [req.user.user_id || req.user.id, 'GRIEVANCE_ASSIGNED', 'grievance', grievance_id]
+      );
+    } catch (logErr) {
+      console.error('Activity log error:', logErr);
+      // Don't fail the operation if logging fails
+    }
 
     return res.json(result.rows[0]);
   } catch (err) {
@@ -137,7 +120,7 @@ exports.updateGrievanceStatus = async (req, res) => {
     const q = `
       UPDATE grievances 
       SET status = $1, updated_at = NOW()
-      WHERE id = $2
+      WHERE grievance_id = $2
       RETURNING *
     `;
     const result = await db.query(q, [status, grievance_id]);
@@ -146,24 +129,27 @@ exports.updateGrievanceStatus = async (req, res) => {
     }
 
     // Insert remark/timeline entry
-    await db.query(
-      `INSERT INTO grievance_remarks (grievance_id, user_id, remark_text)
-       VALUES ($1, $2, $3)`,
-      [grievance_id, req.user.id, remarks]
-    );
-
-    // Insert timeline entry
-    await db.query(
-      `INSERT INTO grievance_timeline (grievance_id, status, updated_at)
-       VALUES ($1, $2, NOW())`,
-      [grievance_id, status]
-    );
+    try {
+      await db.query(
+        `INSERT INTO grievance_remarks (grievance_id, authority_id, remark_text)
+         VALUES ($1, $2, $3)`,
+        [grievance_id, req.user.user_id || req.user.id, remarks]
+      );
+    } catch (remarkErr) {
+      console.error('Remark insert error:', remarkErr);
+      // Don't fail the operation if remark insertion fails
+    }
 
     // Log activity
-    await db.query(
-      `INSERT INTO activity_logs (user_id, action, details) VALUES ($1, $2, $3)`,
-      [req.user.id, 'GRIEVANCE_STATUS_UPDATED', `Grievance ${grievance_id} status changed to ${status}`]
-    );
+    try {
+      await db.query(
+        `INSERT INTO activity_logs (user_id, action, entity_type, entity_id) VALUES ($1, $2, $3, $4)`,
+        [req.user.user_id || req.user.id, 'GRIEVANCE_STATUS_UPDATED', 'grievance', grievance_id]
+      );
+    } catch (logErr) {
+      console.error('Activity log error:', logErr);
+      // Don't fail the operation if logging fails
+    }
 
     return res.json({ success: true, grievance: result.rows[0] });
   } catch (err) {
@@ -183,7 +169,7 @@ exports.getGrievanceTimeline = async (req, res) => {
         gr.remark_text
       FROM grievance_timeline gt
       LEFT JOIN grievance_remarks gr ON gt.status_change_id = gr.remark_id
-      LEFT JOIN users u ON gr.user_id = u.user_id
+      LEFT JOIN users u ON gr.authority_id = u.user_id
       WHERE gt.grievance_id = $1
       ORDER BY gt.updated_at DESC
     `;
@@ -287,7 +273,7 @@ exports.uploadPhoto = async (req, res) => {
     }
 
     // Verify grievance exists
-    const check = await db.query('SELECT id FROM grievances WHERE id = $1', [grievance_id]);
+    const check = await db.query('SELECT grievance_id FROM grievances WHERE grievance_id = $1', [grievance_id]);
     if (check.rowCount === 0) {
       return res.status(404).json({ message: 'grievance not found' });
     }
@@ -299,7 +285,7 @@ exports.uploadPhoto = async (req, res) => {
       VALUES ($1, $2, $3, NOW())
       RETURNING *
     `;
-    const result = await db.query(q, [grievance_id, filePath, req.user?.id || null]);
+    const result = await db.query(q, [grievance_id, filePath, req.user?.user_id || null]);
     
     return res.status(201).json(result.rows[0]);
   } catch (err) {

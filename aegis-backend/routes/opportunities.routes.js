@@ -20,6 +20,9 @@ router.put('/:id', authorizeRoles('faculty', 'admin'), opportunitiesController.u
 // Faculty: Close opportunity
 router.put('/:id/close', authorizeRoles('faculty', 'admin'), opportunitiesController.close);
 
+// Admin: Delete opportunity
+router.delete('/:id', authorizeRoles('admin'), opportunitiesController.remove);
+
 // Faculty: Get my postings
 router.get('/postings/mine', opportunitiesController.myPostings);
 

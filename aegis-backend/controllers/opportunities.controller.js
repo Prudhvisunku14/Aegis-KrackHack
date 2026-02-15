@@ -12,10 +12,10 @@ exports.list = async (req, res) => {
       where.push(`department_id = $${idx++}`);
       params.push(department_id);
     }
-    if (status) {
+    if (status && status.toUpperCase() !== 'ALL') {
       where.push(`status = $${idx++}`);
       params.push(status.toUpperCase());
-    } else {
+    } else if (!status) {
       where.push(`status = 'OPEN'`); // Default: show only open opportunities
     }
     if (skills) {
@@ -139,6 +139,23 @@ exports.close = async (req, res) => {
     }
 
     const { rows } = await db.query('UPDATE opportunities SET status = $1 WHERE opportunity_id = $2 RETURNING *', ['CLOSED', id]);
+    return res.json({ data: rows[0] });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// Delete opportunity (admin only)
+exports.remove = async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'only admin can delete opportunities' });
+    }
+
+    const { id } = req.params;
+    const { rows } = await db.query('DELETE FROM opportunities WHERE opportunity_id = $1 RETURNING *', [id]);
+    if (!rows.length) return res.status(404).json({ message: 'opportunity not found' });
     return res.json({ data: rows[0] });
   } catch (err) {
     console.error(err);
