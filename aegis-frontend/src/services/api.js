@@ -60,6 +60,7 @@ export const admin = {
   toggleUserActive: (userId, payload) => request(`/api/admin/users/${userId}/status`, { method: 'PUT', body: JSON.stringify(payload) }),
   getActivityLogs: (qs = '') => request(`/api/admin/logs${qs}`),
   getSystemHealth: () => request('/api/admin/health'),
+  listGrievances: (qs = '') => request(`/api/admin/grievances${qs}`),
 }
 
 export const authority = {
@@ -67,6 +68,52 @@ export const authority = {
   assignGrievance: (payload) => request('/api/authority/assign', { method: 'POST', body: JSON.stringify(payload) }),
   updateGrievanceStatus: (payload) => request('/api/authority/status-update', { method: 'POST', body: JSON.stringify(payload) }),
   getGrievanceTimeline: (grievanceId) => request(`/api/authority/timeline/${grievanceId}`),
+}
+
+export const grievances = {
+  list: (qs = '') => request(`/api/grievances${qs}`),
+  get: (id) => request(`/api/grievances/${id}`),
+  create: (payload) => request('/api/grievances', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id, payload) => request(`/api/grievances/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  getTimeline: (id) => request(`/api/grievances/${id}/timeline`),
+}
+
+export const courses = {
+  list: (qs = '') => request(`/api/courses${qs}`),
+  get: (id) => request(`/api/courses/${id}`),
+  create: (payload) => request('/api/courses', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id, payload) => request(`/api/courses/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+}
+
+export const enrollments = {
+  list: (qs = '') => request(`/api/enrollments${qs}`),
+  get: (id) => request(`/api/enrollments/${id}`),
+  create: (payload) => request('/api/enrollments', { method: 'POST', body: JSON.stringify(payload) }),
+}
+
+export const academicEvents = {
+  list: (qs = '') => request(`/api/academic_events${qs}`),
+  get: (id) => request(`/api/academic_events/${id}`),
+  create: (payload) => request('/api/academic_events', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id, payload) => request(`/api/academic_events/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  remove: (id) => request(`/api/academic_events/${id}`, { method: 'DELETE' }),
+  remind: (id) => request(`/api/academic_events/${id}/remind`, { method: 'POST' }),
+  getMyReminders: () => request('/api/academic_events/my-reminders'),
+}
+
+export const resources = {
+  search: (query = '') => request(`/api/academic_resources/search?q=${query}`),
+  upload: (formData) => request('/api/academic_resources/upload', { method: 'POST', body: formData }),
+  get: (id) => request(`/api/academic_resources/${id}`),
+  remove: (id) => request(`/api/academic_resources/${id}`, { method: 'DELETE' }),
+}
+
+export const tasks = {
+  list: (qs = '') => request(`/api/tasks${qs}`),
+  get: (id) => request(`/api/tasks/${id}`),
+  create: (payload) => request('/api/tasks', { method: 'POST', body: JSON.stringify(payload) }),
+  update: (id, payload) => request(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  remove: (id) => request(`/api/tasks/${id}`, { method: 'DELETE' }),
 }
 
 export default { request, users };
