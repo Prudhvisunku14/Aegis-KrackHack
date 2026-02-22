@@ -1,6 +1,8 @@
 # AEGIS - Campus Grievance & Opportunity Management Platform
 
 A comprehensive institutional platform for managing student grievances, academic resources, and internship opportunities.
+## Deployed Link
+https://aegis-krack-hack.vercel.app/
 
 ## Features
 
